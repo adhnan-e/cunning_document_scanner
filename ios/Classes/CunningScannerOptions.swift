@@ -15,24 +15,22 @@ enum CunningScannerImageFormat: String {
 struct CunningScannerOptions {
     let imageFormat: CunningScannerImageFormat
     let jpgCompressionQuality: Double
-    
+    let noOfPages: Int?
+
     init() {
-        self.imageFormat = CunningScannerImageFormat.png
+        self.imageFormat = .png
         self.jpgCompressionQuality = 1.0
+        self.noOfPages = nil
     }
-    
-    init(imageFormat: CunningScannerImageFormat) {
-        self.imageFormat = imageFormat
-        self.jpgCompressionQuality = 1.0
-    }
-    
-    init(imageFormat: CunningScannerImageFormat, jpgCompressionQuality: Double) {
+
+    init(imageFormat: CunningScannerImageFormat, jpgCompressionQuality: Double, noOfPages: Int?) {
         self.imageFormat = imageFormat
         self.jpgCompressionQuality = jpgCompressionQuality
+        self.noOfPages = noOfPages
     }
-    
+
     static func fromArguments(args: Any?) -> CunningScannerOptions {
-        if (args == nil) {
+        if args == nil {
             return CunningScannerOptions()
         }
         
@@ -45,7 +43,11 @@ struct CunningScannerOptions {
         let scannerOptionsDict = arguments!["iosScannerOptions"] as! Dictionary<String, Any>
         let imageFormat: String = (scannerOptionsDict["imageFormat"] as? String) ?? "png"
         let jpgCompressionQuality: Double = (scannerOptionsDict["jpgCompressionQuality"] as? Double) ?? 1.0
-            
-        return CunningScannerOptions(imageFormat: CunningScannerImageFormat(rawValue: imageFormat) ?? CunningScannerImageFormat.png, jpgCompressionQuality: jpgCompressionQuality)
+        let noOfPages: Int? = (arguments!["noOfPages"] as? Int)
+        return CunningScannerOptions(
+            imageFormat: CunningScannerImageFormat(rawValue: imageFormat) ?? .png,
+            jpgCompressionQuality: jpgCompressionQuality,
+            noOfPages: noOfPages
+        )
     }
 }

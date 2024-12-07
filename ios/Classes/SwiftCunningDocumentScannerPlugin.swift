@@ -4,82 +4,40 @@ import Vision
 import VisionKit
 
 @available(iOS 13.0, *)
-public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocumentCameraViewControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-    var resultChannel: FlutterResult?
-    var presentingController: UIViewController?
-    var scannerOptions: CunningScannerOptions = CunningScannerOptions()
-    var maxPages: Int = 100
-    var isGalleryImportAllowed: Bool = false
+public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocumentCameraViewControllerDelegate {
+  var resultChannel: FlutterResult?
+  var presentingController: VNDocumentCameraViewController?
+  var scannerOptions: CunningScannerOptions = CunningScannerOptions()
 
-    public static func register(with registrar: FlutterPluginRegistrar) {
-        let channel = FlutterMethodChannel(name: "cunning_document_scanner", binaryMessenger: registrar.messenger())
-        let instance = SwiftCunningDocumentScannerPlugin()
-        registrar.addMethodCallDelegate(instance, channel: channel)
-    }
+  public static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(name: "cunning_document_scanner", binaryMessenger: registrar.messenger())
+    let instance = SwiftCunningDocumentScannerPlugin()
+    registrar.addMethodCallDelegate(instance, channel: channel)
+  }
 
-    public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        if call.method == "getPictures" {
-            let args = call.arguments as? [String: Any]
-            scannerOptions = CunningScannerOptions.fromArguments(args: args)
-            maxPages = args?["noOfPages"] as? Int ?? 100
-            isGalleryImportAllowed = args?["isGalleryImportAllowed"] as? Bool ?? false
-
-            presentingController = UIApplication.shared.keyWindow?.rootViewController
+  public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    if call.method == "getPictures" {
+            scannerOptions = CunningScannerOptions.fromArguments(args: call.arguments)
+            let presentedVC: UIViewController? = UIApplication.shared.keyWindow?.rootViewController
             self.resultChannel = result
-
-            if isGalleryImportAllowed {
-                presentGalleryPicker()
-            } else if VNDocumentCameraViewController.isSupported {
-                let documentCamera = VNDocumentCameraViewController()
-                documentCamera.delegate = self
-                presentingController?.present(documentCamera, animated: true)
+            if VNDocumentCameraViewController.isSupported {
+                self.presentingController = VNDocumentCameraViewController()
+                self.presentingController!.delegate = self
+                presentedVC?.present(self.presentingController!, animated: true)
             } else {
                 result(FlutterError(code: "UNAVAILABLE", message: "Document camera is not available on this device", details: nil))
             }
         } else {
             result(FlutterMethodNotImplemented)
+            return
         }
-    }
+  }
 
-    func presentGalleryPicker() {
-        let imagePicker = UIImagePickerController()
-        imagePicker.sourceType = .photoLibrary
-        imagePicker.delegate = self
-        imagePicker.allowsEditing = false
-        presentingController?.present(imagePicker, animated: true)
-    }
-
-    public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        if let pickedImage = info[.originalImage] as? UIImage {
-            let tempDirPath = self.getDocumentsDirectory()
-            let currentDateTime = Date()
-            let df = DateFormatter()
-            df.dateFormat = "yyyyMMdd-HHmmss"
-            let formattedDate = df.string(from: currentDateTime)
-            let url = tempDirPath.appendingPathComponent("\(formattedDate).\(scannerOptions.imageFormat.rawValue)")
-
-            switch scannerOptions.imageFormat {
-            case .jpg:
-                try? pickedImage.jpegData(compressionQuality: scannerOptions.jpgCompressionQuality)?.write(to: url)
-            case .png:
-                try? pickedImage.pngData()?.write(to: url)
-            }
-
-            resultChannel?([url.path])
-        } else {
-            resultChannel?(nil)
-        }
-        presentingController?.dismiss(animated: true)
-    }
-
-    public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        resultChannel?(nil)
-        presentingController?.dismiss(animated: true)
-    }
 
     func getDocumentsDirectory() -> URL {
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        return paths[0]
+        let documentsDirectory = paths[0]
+        return documentsDirectory
     }
 
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
@@ -90,7 +48,10 @@ public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocum
         let formattedDate = df.string(from: currentDateTime)
         var filenames: [String] = []
 
-        for i in 0 ..< min(scan.pageCount, maxPages) {
+        // Respect the noOfPages limit
+        let pagesToProcess = min(scan.pageCount, scannerOptions.noOfPages ?? scan.pageCount)
+
+        for i in 0 ..< pagesToProcess {
             let page = scan.imageOfPage(at: i)
             let url = tempDirPath.appendingPathComponent(formattedDate + "-\(i).\(scannerOptions.imageFormat.rawValue)")
             switch scannerOptions.imageFormat {
@@ -99,7 +60,6 @@ public class SwiftCunningDocumentScannerPlugin: NSObject, FlutterPlugin, VNDocum
             case .png:
                 try? page.pngData()?.write(to: url)
             }
-
             filenames.append(url.path)
         }
         resultChannel?(filenames)
