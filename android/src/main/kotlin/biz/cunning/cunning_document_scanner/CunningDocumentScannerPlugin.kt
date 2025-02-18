@@ -83,13 +83,14 @@ class CunningDocumentScannerPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                                 pendingResult?.error("ERROR", "error - $error", null)
                             } else {
                                 // get an array with scanned document file paths
-                                val scanningResult: GmsDocumentScanningResult =
-                                    data?.extras?.getParcelable("extra_scanning_result")
-                                        ?: return@ActivityResultListener false
+                                val scanningResult: GmsDocumentScanningResult? =
+    data?.extras?.getParcelable("extra_scanning_result", GmsDocumentScanningResult::class.java)
+        ?: return@ActivityResultListener false
 
-                                val successResponse = scanningResult.pages?.map {
-                                    it.imageUri.toString().removePrefix("file://")
-                                }?.toList()
+// Process the scanned document file paths
+val successResponse = scanningResult.pages?.map {
+    it.imageUri.toString().removePrefix("file://")
+}?.toList()
                                 // trigger the success event handler with an array of cropped images
                                 pendingResult?.success(successResponse)
                             }
